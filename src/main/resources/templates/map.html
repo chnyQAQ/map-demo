@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge">
+    <link href="http://lbs.tianditu.gov.cn/images/favicon.ico" type="image/x-icon" rel="Shortcut Icon">
+    <title>天地图</title>
+    <style type="text/css">
+        html {
+            height: 100%
+        }
+
+        body {
+            height: 100%;
+            margin: 0;
+            padding: 0
+        }
+
+        #map-canvas {
+            height: 100%;
+            fill: #000000;
+        }
+    </style>
+</head>
+<body>
+<div id="map-canvas"></div>
+<script th:src="@{/webjars/jquery/3.4.1/jquery.min.js}" type="text/javascript"></script>
+<script src=" http://api.tianditu.gov.cn/api?v=4.0&tk=0db6950a69cf865cd7057910ce6beef8" type="text/javascript"></script>
+<script src="http://cdn.bootcss.com/d3/3.5.17/d3.js " charset="utf-8"></script>
+<script src="http://lbs.tianditu.gov.cn/api/js4.0/opensource/openlibrary/D3SvgOverlay.js"></script>
+<script>
+
+    var countries = [];
+    var countriesOverlay = new T.D3Overlay(init,redraw);
+    var map = new T.Map("map-canvas");
+    map.centerAndZoom(new T.LngLat(116.39769, 40.25945), 5);
+    map.setStyle("black");
+    window.count = 1;
+
+    d3.json("https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json", function (data) {
+        countries = data.features;
+        map.addOverLay(countriesOverlay)
+        countriesOverlay.bringToBack();
+    });
+
+    function init(sel, transform) {
+        var upd = sel.selectAll('path.geojson').data(countries);
+        upd.enter()
+            .append('path')
+            .attr("class", "geojson")
+            .attr('stroke', 'black')
+            .attr('fill', function (d, i) {
+                return d3.hsl(Math.random() * 360, 0.9, 0.5)
+            })
+            .attr('fill-opacity', '0.5')
+
+
+    }
+
+    function redraw(sel, transform) {
+        sel.selectAll('path.geojson').each(
+            function (d, i) {
+                d3.select(this).style("pointer-events", "all")
+                    .attr('d', transform.pathFromGeojson)
+                    .attr("name", "geojson")
+                    .attr("child", d.properties.level)
+                    .attr("lng", d.properties.center ? d.properties.center[0] : 0)
+                    .attr("lat", d.properties.center ? d.properties.center[1] : 0)
+                    .attr("id-adcode", d.properties.adcode);
+            }
+        )
+
+    }
+
+
+</script>
+
+</body>
+</html>

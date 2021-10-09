@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge">
+    <link href="http://lbs.tianditu.gov.cn/images/favicon.ico" type="image/x-icon" rel="Shortcut Icon">
+    <title>天地图</title>
+    <style type="text/css">
+        html {
+            height: 100%
+        }
+
+        body {
+            height: 100%;
+            margin: 0;
+            padding: 0
+        }
+
+        #map-canvas {
+            height: 100%;
+            fill: #000000;
+        }
+    </style>
+    <script th:inline="javascript">
+        /*<![CDATA[*/
+        // 获取 contextPath
+        contextPath = /*[[@{/}]]*/ '';
+        contextPath = contextPath.substr(0, contextPath.length-1);
+        /*]]>*/
+    </script>
+</head>
+<body>
+<div id="map-canvas"></div>
+<script th:src="@{/webjars/jquery/3.4.1/jquery.min.js}" type="text/javascript"></script>
+<script src=" http://api.tianditu.gov.cn/api?v=4.0&tk=6f52a0119190d281affc14b2516c4b26" type="text/javascript"></script>
+<!--<script th:src="@{/static/js/d3.js}" charset="utf-8" type="text/javascript"></script>
+<script th:src="@{/static/js/D3SvgOverLay.js}" type="text/javascript"></script>-->
+<script src="http://cdn.bootcss.com/d3/3.5.17/d3.js " charset="utf-8"></script>
+<script src="http://lbs.tianditu.gov.cn/api/js4.0/opensource/openlibrary/D3SvgOverlay.js"></script>
+<script>
+
+    let countries = [];
+    let countriesOverlay = new T.D3Overlay(init,redraw);
+    let countriesOverlay1 = new T.D3Overlay(init1,redraw1);
+    let map = new T.Map("map-canvas");
+    map.setMinZoom(1);
+    map.centerAndZoom(new T.LngLat(116.39769, 40.25945), 10);
+    map.setZoom(1);
+    map.setStyle("black");
+    // map.disableDrag(); // 禁用地图拖拽
+
+    window.count = 1;
+
+    d3.json("https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json", function (data) {
+        countries = data.features;
+        map.addOverLay(countriesOverlay)
+        countriesOverlay.bringToBack();
+        map.addOverLay(countriesOverlay1)
+        countriesOverlay.bringToBack();
+        initEvent();
+        addDistrictMarker();
+    });
+
+    function initMap(data) {
+        map.clearOverLays();
+        countries = data.features;
+        map.addOverLay(countriesOverlay)
+        countriesOverlay.bringToBack();
+        map.addOverLay(countriesOverlay1)
+        countriesOverlay.bringToBack();
+        map.enableAutoResize();
+        initEvent();
+        addDistrictMarker();
+    }
+
+    function addDistrictMarker() {
+        $.each(countries, function (i, country) {
+            if (country.properties.center) {
+                let lngLat = new T.LngLat(country.properties.center[0], country.properties.center[1]);
+                //创建图片对象
+                let icon = new T.Icon({
+                    iconUrl: contextPath + "/static/icon/map_location_2.png",
+                    iconSize: new T.Point(29, 25)
+                });
+                //向地图上添加自定义标注
+                let marker = new T.Marker(lngLat, {icon: icon}); // 创建标注
+
+                map.addOverLay(marker); // 将标注添加到地图中
+
+                var infoWin1 = new T.InfoWindow();
+                var sContent =
+                    "<div style='margin:0px;'>" +
+                    "<div style='margin:10px 10px; '>" +
+                    "<div style='margin:10px 0px;'>设备数量：7 </div>" +
+                    "<div style='margin:10px 0px;'>客户数量：7 </div>" +
+                    "<div style='margin:10px 0px;'>险种数量：7 </div>" +
+                    "</div>" +
+                    "</div>";
+                infoWin1.setContent(sContent);
+                marker.addEventListener("click", function () {
+                    marker.openInfoWindow(infoWin1);
+                });// 将标注添加到地图中
+
+                label = new T.Label({
+                    text: country.properties.name,
+                    position: marker.getLngLat(),
+                    offset: new T.Point(-40, -20)
+                });
+                label.setBackgroundColor();
+                label.setBorderColor();
+                label.setFontColor("rgb(255, 255, 255)");
+                label.setTitle(country.properties.name);
+                label.setBorderLine(0);
+                map.addOverLay(label);
+            }
+        });
+    }
+
+    function initEvent() {
+        let elements = document.getElementsByName("geojson");
+        $.each(elements, function (i, element) {
+            let level = element.getAttribute("level");
+            // let lng = element.getAttribute("lng");
+            // let lat = element.getAttribute("lat");
+            if (window.count <= 3) {
+                element.onclick = function () {
+                    let lngLats = [];
+                    let coordinates = element.__data__.geometry.coordinates;
+                    $.each(coordinates, function (i, coordinate) {
+                        $.each(coordinate, function (i, points) {
+                            if (points.length == 2) {
+                                lngLats.push(points);
+                            } else {
+                                $.each(points, function (i, point) {
+                                    lngLats.push(point);
+                                });
+                            }
+
+                        });
+                    });
+                    calculateScope(lngLats);
+                    calculateCenter();
+                    let zoom = calculateZoom();
+                    let adcode = element.getAttribute("id-adcode");
+                    if (level == "district" && window.count == 3) {
+                        d3.json("https://geo.datav.aliyun.com/areas_v3/bound/" + adcode + ".json", initMap);
+                        map.centerAndZoom(new T.LngLat(centerLng, centerLat), zoom);
+                    } else if (level == "district" && window.count == 2) {
+                        d3.json("https://geo.datav.aliyun.com/areas_v3/bound/" + adcode + ".json", initMap);
+                        map.centerAndZoom(new T.LngLat(centerLng, centerLat), zoom);
+                    } else if (level == "district" && window.count == 1){
+                        d3.json("https://geo.datav.aliyun.com/areas_v3/bound/" + adcode + "_full.json", initMap);
+                        map.centerAndZoom(new T.LngLat(centerLng, centerLat), zoom);
+                    } else {
+                        if (adcode == "710000") {
+                            d3.json("https://geo.datav.aliyun.com/areas_v3/bound/" + adcode + ".json", initMap);
+                        } else {
+                            d3.json("https://geo.datav.aliyun.com/areas_v3/bound/" + adcode + "_full.json", initMap);
+                        }
+                        map.centerAndZoom(new T.LngLat(centerLng, centerLat), zoom);
+                    }
+                    window.count++;
+                }
+            }
+        });
+    }
+
+    function init(sel, transform) {
+        var upd = sel.selectAll('path.geojson').data(countries);
+        upd.enter()
+            .append('path')
+            .attr("class", "geojson")
+            .attr('stroke', 'black')
+            .attr('fill', "rgba(162,255,0,0.2)")
+            .attr('fill-opacity', '0.5');
+    }
+
+    function redraw(sel, transform) {
+        sel.selectAll('path.geojson').each(
+            function (d, i) {
+                d3.select(this).style("pointer-events", "all")
+                    .attr('d', transform.pathFromGeojson)
+                    .attr("name", "geojson")
+                    .attr("level", d.properties.level)
+                    .attr("lng", d.properties.center ? d.properties.center[0] : 0)
+                    .attr("lat", d.properties.center ? d.properties.center[1] : 0)
+                    .attr("id-adcode", d.properties.adcode);
+            }
+        )
+    }
+
+
+    function init1(sel, transform) {
+        var upd = sel.selectAll('path.geojson1').data(countries);
+        upd.enter()
+            .append('path')
+            .attr("class", "geojson1")
+            .attr('stroke', 'black')
+            .attr('fill', "rgba(162,255,0,0.2)")
+            .attr('fill-opacity', '0.5');
+    }
+
+    function redraw1(sel, transform) {
+        sel.selectAll('path.geojson1').each(
+            function (d, i) {
+                d3.select(this).style("pointer-events", "all")
+                    .attr('d', transform.pathFromGeojson)
+                    .attr("name", "geojson")
+                    .attr("level", d.properties.level)
+                    .attr("lng", d.properties.center ? d.properties.center[0] : 0)
+                    .attr("lat", d.properties.center ? d.properties.center[1] : 0)
+                    .attr("id-adcode", d.properties.adcode);
+            }
+        )
+    }
+
+    let maxLng, minLng, maxLat, minLat;
+    function calculateScope(lngLats) {
+        maxLng = lngLats[0][0];
+        minLng = lngLats[0][0];
+        maxLat = lngLats[0][1];
+        minLat = lngLats[0][1];
+        $.each(lngLats, function (i, res) {
+            if (res[0] > maxLng) maxLng = res[0];
+            if (res[0] < minLng) minLng = res[0];
+            if (res[1] > maxLat) maxLat = res[1];
+            if (res[1] < minLat) minLat = res[1];
+        });
+    }
+
+    let centerLng, centerLat;
+    function calculateCenter() {
+        centerLng = (parseFloat(maxLng) + parseFloat(minLng)) / 2;
+        centerLat = (parseFloat(maxLat) + parseFloat(minLat)) / 2;
+    }
+
+    function calculateZoom() {
+        if (maxLng == minLng && maxLat == minLat) return 13;
+        let diff = maxLng - minLng;
+        if (diff < (maxLat - minLat) * 2.1) diff = (maxLat - minLat) * 2.1;
+        diff = parseInt(10000 * diff) / 10000;
+
+        let zoomArr = new Array(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13);
+        let diffArr = new Array(180, 90, 45, 22, 11, 5.5, 2.75, 1.37, 0.68, 0.34, 0.17, 0.08, 0.04);
+
+        for (let i = 0; i < diffArr.length; i++) {
+            if ((diff - diffArr[i]) >= 0) {
+                return zoomArr[i] + 2;
+            }
+        }
+        return 14;
+    }
+
+
+</script>
+
+</body>
+</html>
